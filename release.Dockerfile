@@ -1,25 +1,31 @@
-ARG SONARQUBE_VERSION="community"
+# Unified Dockerfile for building SonarQube with the Community Branch Plugin
+# This Dockerfile downloads pre-built release artifacts from GitHub
 
-FROM sonarqube:${SONARQUBE_VERSION}
+ARG SQ_VERSION=26.1.0.118079-community
+ARG SQ_IMAGE_NAME=sonarqube
+ARG REGISTRY_PREFIX=
+
+FROM ${REGISTRY_PREFIX}${SQ_IMAGE_NAME}:${SQ_VERSION}
 
 ARG PLUGIN_VERSION
-ARG DOWNLOAD_BASE_URL=https://github.com/mc1arke/sonarqube-community-branch-plugin/releases/download/${PLUGIN_VERSION}
-ENV PLUGIN_VERSION=${PLUGIN_VERSION}
+ARG DOWNLOAD_BASE_URL=https://github.com/fabiogermann/sonarqube-community-branch-plugin/releases/download/${PLUGIN_VERSION}
 
-ADD --chown=sonarqube:root ${DOWNLOAD_BASE_URL}/sonarqube-community-branch-plugin-${PLUGIN_VERSION}.jar /opt/sonarqube/extensions/plugins/
-
+# hadolint ignore=DL3002
 USER root
-RUN apt-get update && \
-    apt-get --no-install-recommends -y install unzip && \
-    wget ${DOWNLOAD_BASE_URL}/sonarqube-webapp.zip && \
-    rm -rf /opt/sonarqube/web/* && \
-    unzip sonarqube-webapp.zip -d /opt/sonarqube/web && \
-    chown -R sonarqube:root /opt/sonarqube/web && \
-    chmod -R 550 /opt/sonarqube/web && \
-    apt-get remove -y unzip && \
-    rm sonarqube-webapp.zip && \
-    apt-get clean
 
+# hadolint ignore=DL3018,DL3008,DL3009
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install --no-install-recommends -y wget unzip && \
+    wget "${DOWNLOAD_BASE_URL}/sonarqube-community-branch-plugin-${PLUGIN_VERSION}.jar" \
+         --quiet -O /opt/sonarqube/extensions/plugins/sonarqube-community-branch-plugin.jar && \
+    wget "${DOWNLOAD_BASE_URL}/sonarqube-webapp.zip" --quiet -O /tmp/sonarqube-webapp.zip && \
+    rm -rf /opt/sonarqube/web && mkdir -p /opt/sonarqube/web && \
+    unzip /tmp/sonarqube-webapp.zip -d /opt/sonarqube/web && rm /tmp/sonarqube-webapp.zip && \
+    sed -i "s|#sonar.web.javaAdditionalOpts=|sonar.web.javaAdditionalOpts=-javaagent:./extensions/plugins/sonarqube-community-branch-plugin.jar=web|g" /opt/sonarqube/conf/sonar.properties && \
+    sed -i "s|#sonar.ce.javaAdditionalOpts=|sonar.ce.javaAdditionalOpts=-javaagent:./extensions/plugins/sonarqube-community-branch-plugin.jar=ce|g" /opt/sonarqube/conf/sonar.properties && \
+    apt-get purge -y unzip && apt-get autoremove -y && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+# Note: wget retained for liveness probes
+
+# hadolint ignore=DL3002
 USER sonarqube
-ENV SONAR_WEB_JAVAADDITIONALOPTS="-javaagent:./extensions/plugins/sonarqube-community-branch-plugin-${PLUGIN_VERSION}.jar=web"
-ENV SONAR_CE_JAVAADDITIONALOPTS="-javaagent:./extensions/plugins/sonarqube-community-branch-plugin-${PLUGIN_VERSION}.jar=ce"
