@@ -197,13 +197,12 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: release.Dockerfile
+          file: ci.Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository }}:${{ needs.prep.outputs.version }}
             ghcr.io/${{ github.repository }}:latest
           build-args: |
-            PLUGIN_VERSION=${{ needs.prep.outputs.version }}
             SQ_VERSION=26.1.0.118079-community
 
   sonar:
